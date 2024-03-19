@@ -29,6 +29,10 @@ pub const Memory = struct {
 
     pub fn new() Memory {
         var mem = std.mem.zeroes(Memory);
+        // clear ram
+        for (&mem.ram) |*i| {
+            i.* = 0;
+        }
         // load font
         for (FONT, 0..) |c, i| {
             mem.ram[i] = c;
@@ -45,7 +49,7 @@ pub const Memory = struct {
     }
 
     pub fn loadRom(self: *Memory) !void {
-        var inputFile = try std.fs.cwd().openFile("roms/TETRIS", .{});
+        var inputFile = try std.fs.cwd().openFile("roms/BRIX", .{});
         defer inputFile.close();
 
         var size = try inputFile.getEndPos();
@@ -58,12 +62,40 @@ pub const Memory = struct {
     }
 };
 
+pub const Display = struct {
+    fbuf: [(64 * 32) + 1]u8,
+
+    pub fn new() Display {
+        var display = std.mem.zeroes(Display);
+        for (&display.fbuf) |*i| {
+            i.* = 0;
+        }
+        return display;
+    }
+
+    pub fn clear(self: *Display) void {
+        for (&self.fbuf) |*i| {
+            i.* = 0;
+        }
+    }
+
+    pub fn write(self: *Display, x: usize, y: usize) void {
+        self.fbuf[y * 64 + x] ^= 1;
+    }
+
+    pub fn read(self: *Display, x: usize, y: usize) u8 {
+        return self.fbuf[y * 64 + x];
+    }
+};
+
 pub const Bus = struct {
     memory: Memory,
+    display: Display,
 
     pub fn new() Bus {
         var bus = std.mem.zeroes(Bus);
         bus.memory = Memory.new();
+        bus.display = Display.new();
         return bus;
     }
 };
@@ -76,7 +108,6 @@ pub const Chip8 = struct {
     pc: u16,
     sp: u8,
     draw: bool,
-    fbuf: [64 * 32]u8,
     delay_timer: u8,
     sound_timer: u8,
     bus: Bus,
@@ -107,7 +138,7 @@ pub const Chip8 = struct {
         switch (opcode) {
             0x0 => switch (nn) {
                 0xe0 => {
-                    @memset(&self.fbuf, 0);
+                    self.bus.display.clear();
                     self.draw = true;
                     self.pc += 2;
                 },
@@ -233,8 +264,8 @@ pub const Chip8 = struct {
                     for (0..8) |col| {
                         if ((sprite & (@as(u8, 0x80) >> @intCast(col))) != 0) {
                             var xpos = self.vn[x] % 64 + col;
-                            self.fbuf[ypos * 64 + xpos] ^= 1;
-                            if (self.fbuf[ypos * 64 + xpos] == 0) {
+                            self.bus.display.write(xpos, ypos);
+                            if (self.bus.display.read(xpos, ypos) == 0) {
                                 self.vn[0xf] = 1;
                             }
                             if (xpos >= 64) break;
@@ -364,7 +395,7 @@ pub fn main() !void {
     var end: f64 = 0;
     var delta: f64 = 0;
     var accu: f64 = 0;
-    var threshold: f64 = 1;
+    var threshold: f64 = 1 / 60;
 
     mainloop: while (true) {
         delta = end - start;
@@ -414,11 +445,10 @@ pub fn main() !void {
                 _ = sdl.SDL_LockTexture(texture, null, @as([*]?*anyopaque, @ptrCast(&ram)), &pitch);
                 for (0..32) |y| {
                     for (0..64) |x| {
-                        ram.?[y * 64 + x] = if (sys.fbuf[y * 64 + x] == 1) 0x00ff00ff else 0x00000000;
+                        ram.?[y * 64 + x] = if (sys.bus.display.read(x, y) == 1) 0x00ff00ff else 0x00000000;
                     }
                 }
                 sdl.SDL_UnlockTexture(texture);
-
                 var dest = sdl.SDL_Rect{ .x = 0, .y = 0, .w = 640, .h = 400 };
                 _ = sdl.SDL_RenderCopy(renderer, texture, null, &dest);
                 sdl.SDL_RenderPresent(renderer);
