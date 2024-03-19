@@ -49,7 +49,7 @@ pub const Memory = struct {
     }
 
     pub fn loadRom(self: *Memory) !void {
-        var inputFile = try std.fs.cwd().openFile("roms/BRIX", .{});
+        var inputFile = try std.fs.cwd().openFile("roms/PONG2", .{});
         defer inputFile.close();
 
         var size = try inputFile.getEndPos();
@@ -63,7 +63,7 @@ pub const Memory = struct {
 };
 
 pub const Display = struct {
-    fbuf: [(64 * 32) + 1]u8,
+    fbuf: [64*32]u8,
 
     pub fn new() Display {
         var display = std.mem.zeroes(Display);
