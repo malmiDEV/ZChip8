@@ -67,9 +67,8 @@ pub const Display = struct {
 
     pub fn new() Display {
         var display = std.mem.zeroes(Display);
-        for (&display.fbuf) |*i| {
-            i.* = 0;
-        }
+        // clear feamebuffer
+        display.clear();
         return display;
     }
 
@@ -115,6 +114,18 @@ pub const Chip8 = struct {
     pub fn new() Chip8 {
         cstd.srand(@as(u32, @intCast(time.time(0))));
         var sys = std.mem.zeroes(Chip8);
+        // clear keys
+        for (&sys.key) |*i| {
+            i.* = 0;
+        }
+        // clear registers
+        for (&sys.vn) |*i| {
+            i.* = 0;
+        }
+        // clear stack
+        for (&sys.ret_stack) |*i| {
+            i.* = 0;
+        }
         sys.i = 0;
         sys.pc = START;
         sys.sp = 0;
@@ -425,6 +436,7 @@ pub fn main() !void {
                             sdl.SDLK_x => sys.key[0x0] = 1,
                             sdl.SDLK_c => sys.key[0xB] = 1,
                             sdl.SDLK_v => sys.key[0xF] = 1,
+                            sdl.SDLK_ESCAPE => sys.bus.display.clear(),
                             else => {},
                         }
                     },
